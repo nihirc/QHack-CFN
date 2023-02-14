@@ -17,6 +17,13 @@ Parameters:
     Type: String
     AllowedPattern: (^\/$)|(^\/.*\/$)
     Default: '/'
+  paramAdminUser:
+    Description: Administrative user
+    Type: String
+    Default: QHackTeamAdmin
+  paramAdminUserPassword:
+    Description: Administrative user password
+    Default: P@$$w0rd
   paramUsers:
     Description: Comma separated list of users to be created and added to the QHack Team group. Default password for all users - P@$$w0rd
     Type: String
@@ -50,6 +57,15 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/IAMUserChangePassword
+  QHackTeamAdminUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref paramAdminUser
+      LoginProfile:
+        Password: !Ref paramAdminUserPassword
+        PasswordResetRequired: true
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
   LambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:

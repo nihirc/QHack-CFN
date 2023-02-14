@@ -1,0 +1,99 @@
+## =================== VERSION ===================
+AWSTemplateFormatVersion: '2010-09-09'
+
+## =================== DESCRIPTION ===================
+Description: >-
+  AWS CloudFormation template 
+  Create an IAM user group and IAM users
+
+## =================== PARAMETERS ===================
+Parameters:
+  paramGroupName:
+    Description: Unique IAM user group name
+    Type: String
+    Default: 'QHackTeam'
+  paramPath:
+    Description: IAM Path that you want to associate with the group 
+    Type: String
+    AllowedPattern: (^\/$)|(^\/.*\/$)
+    Default: '/'
+  paramUsers:
+    Description: Comma separated list of users to be created and added to the QHack Team group
+    Type: String
+    Default: User1, User2
+  paramDynamoDBTable:
+    Description: DynamoDB table to store IAM users access keys. TTL for generated access keys are 24 hours.
+    Type: String
+    Default: UserAccessKeysTable
+  
+## =================== RESOURCES ===================
+Resources:
+  QHackTeamGroup:
+    Type: 'AWS::IAM::Group'
+    Properties:
+      GroupName: !Ref paramGroupName 
+      Path: !Ref paramPath
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: QHackCFNLambdaRole
+      Description: Lambda function role to create IAM users
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+              Action:
+                - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+  UserAccessKeysTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "Username"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "Username"
+          AttributeType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      TableName: !Ref paramDynamoDBTable
+      TimeToLiveSpecification:
+        AttributeName: "ttl"
+        Enabled: true
+  IAMUserCreatorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: IAMUserCreatorFunction
+      Description: Lambda function to create IAM users, add them to group and populate DynamoDB with their access keys
+      Code:
+        ZipFile: !Sub |
+          import boto3, json
+          import cfnresponse
+
+        Handler: index.handler
+        Role: !GetAtt LambdaRole.Arn
+        Runtime: python3.8
+        Timeout: 5
+
+
+## =================== OUTPUT ===================
+Outputs:
+  outputName:
+    Description: Group name
+    Value: !Ref QHackTeamGroup
+  outputARN:
+    Description: Group ARN
+    Value: !GetAtt myGroup.Arn
+  outputDDBTable:
+    Description: IAM User access keys table
+    Value: !Ref paramDynamoDBTable    

@@ -49,11 +49,12 @@ Resources:
             Principal:
               Service:
                 - lambda.amazonaws.com
-              Action:
-                - "sts:AssumeRole"
+            Action:
+              - "sts:AssumeRole"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/IAMFullAccess
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
   UserAccessKeysTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -62,7 +63,7 @@ Resources:
           AttributeType: "S"
       KeySchema:
         - AttributeName: "Username"
-          AttributeType: "HASH"
+          KeyType: "HASH"
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
@@ -70,21 +71,51 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: "ttl"
         Enabled: true
+  CustomResource:
+    Type: Custom::CustomResource
+    Properties:
+      ServiceToken: !GetAtt IAMUserCreatorLambda.Arn
+      Users: !Ref paramUsers
   IAMUserCreatorLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: IAMUserCreatorFunction
       Description: Lambda function to create IAM users, add them to group and populate DynamoDB with their access keys
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 5
+      Environment:
+        Variables:
+          DDB_TABLE: !Ref paramDynamoDBTable
       Code:
         ZipFile: !Sub |
           import boto3, json
+          import logging
           import cfnresponse
 
-        Handler: index.handler
-        Role: !GetAtt LambdaRole.Arn
-        Runtime: python3.8
-        Timeout: 5
+          logger = logging.getLogger(__name__)
 
+          def handler(event, context):
+              logger.info(json.dumps(event))
+
+              if event['RequestType'] == 'Create':
+                  response = 'SUCCESS'
+                  responseData = {}
+                  responseData['Data'] = response
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+              
+              if event['RequestType'] == 'Update':
+                  response = 'SUCCESS'
+                  responseData = {}
+                  responseData['Data'] = response
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
+
+              if event['RequestType'] == 'Delete':
+                  response = 'SUCCESS'
+                  responseData = {}
+                  responseData['Data'] = response
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData, "CustomResourcePhysicalID")
 
 ## =================== OUTPUT ===================
 Outputs:
@@ -93,7 +124,7 @@ Outputs:
     Value: !Ref QHackTeamGroup
   outputARN:
     Description: Group ARN
-    Value: !GetAtt myGroup.Arn
+    Value: !GetAtt QHackTeamGroup.Arn
   outputDDBTable:
     Description: IAM User access keys table
     Value: !Ref paramDynamoDBTable    

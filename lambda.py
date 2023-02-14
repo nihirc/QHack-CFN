@@ -57,13 +57,14 @@ def handler(event, context):
         for user in users:
             if create_iam_user(user):
                 if create_iam_user_profile(user):
-                    response = ddb.add_user_to_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
+                    response = iam.add_user_to_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
                     print(response)
                     response = create_iam_user_key(user)
-                    item = {}
-                    item["Username"] = user
-                    item["access_key"] = response["AccessKey"]["AccessKeyId"]
-                    item["secret_key"] = response["AccessKey"]["SecretAccessKey"]
+                    item = {
+                        "Username": {"S": user},
+                        "access_key": {"S": response["AccessKey"]["AccessKeyId"]},
+                        "secret_key": {"S": response["AccessKey"]["SecretAccessKey"]}
+                    }
                     put_ddb_item(item)
         response = 'SUCCESS'
         responseData = {}

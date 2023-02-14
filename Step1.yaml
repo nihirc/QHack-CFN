@@ -23,6 +23,7 @@ Parameters:
     Default: QHackTeamAdmin
   paramAdminUserPassword:
     Description: Administrative user password
+    Type: String
     Default: P@$$w0rd
   paramUsers:
     Description: Comma separated list of users to be created and added to the QHack Team group. Default password for all users - P@$$w0rd
@@ -98,9 +99,6 @@ Resources:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
       TableName: !Ref paramDynamoDBTable
-      TimeToLiveSpecification:
-        AttributeName: "ttl"
-        Enabled: true
   BillingSnsTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -201,16 +199,20 @@ Resources:
               if event['RequestType'] == 'Create':
                   users = event['ResourceProperties']['Users']
                   users = users.split(",")
+                  print(users)
                   for user in users:
+                      print(user)
+                      user = user.replace(" ", "")
                       if create_iam_user(user):
                           if create_iam_user_profile(user):
-                              response = ddb.add_user_to_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
+                              response = iam.add_user_to_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
                               print(response)
                               response = create_iam_user_key(user)
-                              item = {}
-                              item["Username"] = user
-                              item["access_key"] = response["AccessKey"]["AccessKeyId"]
-                              item["secret_key"] = response["AccessKey"]["SecretAccessKey"]
+                              item = {
+                                  "Username": {"S": user},
+                                  "access_key": {"S": response["AccessKey"]["AccessKeyId"]},
+                                  "secret_key": {"S": response["AccessKey"]["SecretAccessKey"]}
+                              }
                               put_ddb_item(item)
                   response = 'SUCCESS'
                   responseData = {}
@@ -225,6 +227,7 @@ Resources:
 
               if event['RequestType'] == 'Delete':
                   response = get_ddb_items()
+                  print(response)
                   response = 'SUCCESS'
                   responseData = {}
                   responseData['Data'] = response

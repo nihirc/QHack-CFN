@@ -8,10 +8,10 @@ Description: >-
 
 ## =================== PARAMETERS ===================
 Parameters:
-  paramNotebookInstanceName:
-    Description: Unique name for Amazon Braket Notebook instance. 
+  paramUserNotebook:
+    Description: Username for whom to create notebook instance
     Type: String
-    Default: amazon-braket-UserANotebook
+    Default: UserA
   paramInstanceType:
     Description: The type of compute instance to launch for the notebook
     Type: String
@@ -36,6 +36,12 @@ Parameters:
       - ml.p3.2xlarge
       - ml.p3.8xlarge
       - ml.p3.16xlarge
+  paramQPUAccess:
+    Description: Whether to enable access to QPUs or not
+    Type: String
+    AllowedValues:
+      - true
+      - false
 
 ## =================== RESOURCES ===================
 Resources:
@@ -44,6 +50,8 @@ Resources:
     Properties:
       LogGroupName: "/aws/sagemaker/NotebookInstances"
       RetentionInDays: 7
+  Condition:
+    isQPU: !Equals [ !Ref paramQPUAccess, true]
   BraketNotebookInstanceLifecycleConfig:
     Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
     Properties:
@@ -91,7 +99,9 @@ Resources:
   ExecutionRole: 
     Type: "AWS::IAM::Role"
     Properties: 
-      RoleName: "AmazonBraketExecutionRole"
+      RoleName: !Sub
+        - "AmazonBraketExecutionRole-${Username}"
+        - Username: !Ref paramUserNotebook
       AssumeRolePolicyDocument: 
         Version: "2012-10-17"
         Statement: 
@@ -136,7 +146,34 @@ Resources:
     Properties: 
       DirectInternetAccess: Enabled
       InstanceType: !Ref paramInstanceType
-      NotebookInstanceName: !Ref paramNotebookInstanceName
+      NotebookInstanceName: !Sub
+        - 'amazon-braket-${Username}'
+        - Username: !Ref paramUserNotebook
       RoleArn: !GetAtt ExecutionRole.Arn
       VolumeSizeInGB: 30
       LifecycleConfigName: !GetAtt BraketNotebookInstanceLifecycleConfig.NotebookInstanceLifecycleConfigName
+  QPUAccessPolicy:
+    Type: AWS::IAM::Policy
+    Condition: isQPU
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action:
+              - braket:CreateQuantumTask
+              - braket:CancelQuantumTask
+              - braket:GetQuantumTask
+              - braket:SearchQuantumTasks
+              - braket:GetDevice
+              - braket:SearchDevices
+            Resource: !Sub arn:aws:braket::${AWS::AccountId}:device/qpu/*
+      PolicyName: !Sub
+        - 'QPUPolicy-${Username}'
+        - Username: !Ref paramUserNotebook
+      Roles:
+        - !GetAtt ExecutionRole.Arn
+      Users:
+        - !Sub 
+          - arn:aws:iam::${AWS::AccountId}:user/${Username}
+          - Username: !Ref paramUserNotebook

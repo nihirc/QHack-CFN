@@ -36,8 +36,9 @@ In this step, login as Administrative user and launch `2_Amazon_Braket_Notebook_
 1. Login to AWS account using Administrative user created in above step. 
 2. Navigate to CloudFormation console and select `2_Amazon_Braket_Notebook_Setup.yaml` template.
 3. Fill in below list of parameters
-    * **paramNotebookInstanceName**: Name of the notebook instance. Starts with `amazon-braket-`. Append Name of the user to create user specific notebook instance.
+    * **paramUserNotebook**: Name of the user for whom to create notebook instance. Username should match users created using `1_IAM_Groups_Users_Setup.yaml` template.
     * **paramInstanceType**: Instance type for notebook instance. Default is `ml.t3.medium`. 
+    * **paramQPUAccess**: Whether to provide access to QPUs to the user
 4. Click Next, Next and select checkbox to accept conditions that IAM roles will be created.
 5. Submit. Takes around 5 mins for the notebook creation to finish.
 6. Repeat for each user that you would like to provide Notebook instance.

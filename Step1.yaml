@@ -123,13 +123,26 @@ Resources:
       Dimensions:
         - Name: "Currency"
           Value: "USD"
+  BraketServiceLinkedRoleResource:
+    Type: AWS::IAM::ServiceLinkedRole
+    Properties:
+      AWSServiceName: braket.amazonaws.com
+      Description: A service-linked role for Amazon Braket
   CustomResource:
     Type: Custom::CustomResource
     Properties:
       ServiceToken: !GetAtt IAMUserCreatorLambda.Arn
       Users: !Ref paramUsers
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref IAMUserCreatorLambda]]
+      RetentionInDays: 7
   IAMUserCreatorLambda:
     Type: AWS::Lambda::Function
+    DependsOn:
+      - QHackTeamGroup
+      - UserAccessKeysTable
     Properties:
       FunctionName: IAMUserCreatorFunction
       Description: Lambda function to create IAM users, add them to group and populate DynamoDB with their access keys
@@ -199,9 +212,7 @@ Resources:
               if event['RequestType'] == 'Create':
                   users = event['ResourceProperties']['Users']
                   users = users.split(",")
-                  print(users)
                   for user in users:
-                      print(user)
                       user = user.replace(" ", "")
                       if create_iam_user(user):
                           if create_iam_user_profile(user):
@@ -227,7 +238,13 @@ Resources:
 
               if event['RequestType'] == 'Delete':
                   response = get_ddb_items()
-                  print(response)
+                  for item in response["Items"]:
+                      access_key = item["access_key"]["S"]
+                      user = item["Username"]["S"]
+                      iam.delete_login_profile(UserName=user)
+                      iam.delete_access_key(UserName=user, AccessKeyId=access_key)
+                      iam.remove_user_from_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
+                      iam.delete_user(UserName=user)
                   response = 'SUCCESS'
                   responseData = {}
                   responseData['Data'] = response

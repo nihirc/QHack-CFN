@@ -55,6 +55,7 @@ def handler(event, context):
         users = event['ResourceProperties']['Users']
         users = users.split(",")
         for user in users:
+            user = user.replace(" ", "")
             if create_iam_user(user):
                 if create_iam_user_profile(user):
                     response = iam.add_user_to_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
@@ -79,6 +80,13 @@ def handler(event, context):
 
     if event['RequestType'] == 'Delete':
         response = get_ddb_items()
+        for item in response["Items"]:
+            access_key = item["access_key"]["S"]
+            user = item["Username"]["S"]
+            iam.delete_login_profile(UserName=user)
+            iam.delete_access_key(UserName=user, AccessKeyId=access_key)
+            iam.remove_user_from_group(GroupName=os.environ["GROUP_NAME"], UserName=user)
+            iam.delete_user(UserName=user)
         response = 'SUCCESS'
         responseData = {}
         responseData['Data'] = response

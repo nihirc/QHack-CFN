@@ -1,0 +1,142 @@
+## =================== VERSION ===================
+AWSTemplateFormatVersion: '2010-09-09'
+
+## =================== DESCRIPTION ===================
+Description: >-
+  AWS CloudFormation template 
+  Create Amazon Braket notebook instance
+
+## =================== PARAMETERS ===================
+Parameters:
+  paramNotebookInstanceName:
+    Description: Unique name for Amazon Braket Notebook instance. 
+    Type: String
+    Default: amazon-braket-UserANotebook
+  paramInstanceType:
+    Description: The type of compute instance to launch for the notebook
+    Type: String
+    Default: ml.t3.medium
+    AllowedValues:
+      - ml.t3.medium
+      - ml.t3.large
+      - ml.t3.xlarge
+      - ml.t3.2xlarge
+      - ml.m5.large
+      - ml.m5.xlarge
+      - ml.m5.2xlarge
+      - ml.m5.4xlarge
+      - ml.m5.12xlarge
+      - ml.m5.24xlarge
+      - ml.c5.large
+      - ml.c5.xlarge
+      - ml.c5.2xlarge
+      - ml.c5.4xlarge
+      - ml.c5.9xlarge
+      - ml.c5.18xlarge
+      - ml.p3.2xlarge
+      - ml.p3.8xlarge
+      - ml.p3.16xlarge
+
+## =================== RESOURCES ===================
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/aws/sagemaker/NotebookInstances"
+      RetentionInDays: 7
+  BraketNotebookInstanceLifecycleConfig:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties:
+      NotebookInstanceLifecycleConfigName: BraketLifecycleConfig
+      OnStart:
+      - Content:
+          Fn::Base64: |
+            #!/usr/bin/env bash
+
+            set -e
+            
+            # OVERVIEW
+            # This script stops a SageMaker notebook once it's idle for more than 1 hour (default time)
+            # You can change the idle time for stop using the environment variable below.
+            # If you want the notebook the stop only if no browsers are open, remove the --ignore-connections flag
+            #
+            # Note that this script will fail if either condition is not met
+            #   1. Ensure the Notebook Instance has internet connectivity to fetch the example config
+            #   2. Ensure the Notebook Instance execution role permissions to SageMaker:StopNotebookInstance to stop the notebook 
+            #       and SageMaker:DescribeNotebookInstance to describe the notebook.
+            #
+            
+            # PARAMETERS
+            IDLE_TIME=3600
+            
+            echo "Fetching the autostop script"
+            wget https://raw.githubusercontent.com/aws-samples/amazon-sagemaker-notebook-instance-lifecycle-config-samples/master/scripts/auto-stop-idle/autostop.py
+            
+            echo "Starting the SageMaker autostop script in cron"
+            
+            (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/python $PWD/autostop.py --time $IDLE_TIME --ignore-connections") | crontab -
+
+            sudo -u ec2-user -i <<EOS
+            TMPDIR=$(mktemp -d)
+            cd "$TMPDIR"
+
+            aws s3 cp s3://braketnotebookcdk-notebooklccs3bucketb3089b50-68b4kazkyfol/notebook/braket-notebook-lcc.zip braket-notebook-lcc.zip
+            unzip braket-notebook-lcc.zip
+            ./install.sh
+
+            nohup rm -fr "$TMPDIR" &
+            EOS
+
+            exit 0
+  ExecutionRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      RoleName: "AmazonBraketExecutionRole"
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+        - 
+          Effect: "Allow"
+          Principal: 
+            Service: 
+              - "sagemaker.amazonaws.com"
+          Action: 
+          - "sts:AssumeRole"
+      Path: "/service-role/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonBraketFullAccess
+      Policies: 
+        - 
+          PolicyName: "braket-notebook-policy"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::amazon-braket-*
+                  - arn:aws:s3:::braketnotebookcdk-*
+              - Effect: "Allow"
+                Action: 
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:CreateLogGroup"
+                  - "logs:DescribeLogStreams"
+                Resource: "*"
+              - Effect: "Allow"
+                Action: 
+                  - braket:*
+                Resource: "*"
+  BraketNotebook:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties: 
+      DirectInternetAccess: Enabled
+      InstanceType: !Ref paramInstanceType
+      NotebookInstanceName: !Ref paramNotebookInstanceName
+      RoleArn: !GetAtt ExecutionRole.Arn
+      VolumeSizeInGB: 30
+      LifecycleConfigName: !GetAtt BraketNotebookInstanceLifecycleConfig.NotebookInstanceLifecycleConfigName

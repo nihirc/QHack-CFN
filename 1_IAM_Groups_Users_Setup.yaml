@@ -12,11 +12,6 @@ Parameters:
     Description: Unique IAM user group name
     Type: String
     Default: 'QHackTeam'
-  paramPath:
-    Description: IAM Path that you want to associate with the group 
-    Type: String
-    AllowedPattern: (^\/$)|(^\/.*\/$)
-    Default: '/'
   paramAdminUser:
     Description: Administrative user
     Type: String
@@ -28,7 +23,7 @@ Parameters:
   paramUsers:
     Description: Comma separated list of users to be created and added to the QHack Team group. Default password for all users - P@$$w0rd
     Type: String
-    Default: UserA, UserB
+    Default: UserA, UserB, UserC, UserD
   paramDynamoDBTable:
     Description: DynamoDB table to store IAM users access keys. TTL for generated access keys are 24 hours.
     Type: String
@@ -53,7 +48,7 @@ Resources:
     Type: 'AWS::IAM::Group'
     Properties:
       GroupName: !Ref paramGroupName 
-      Path: !Ref paramPath
+      Path: '/'
       ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
         - arn:aws:iam::aws:policy/AmazonS3FullAccess

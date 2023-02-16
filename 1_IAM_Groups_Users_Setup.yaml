@@ -98,6 +98,8 @@ Resources:
       Description: Service role for Amazon Braket
   CustomResource:
     Type: Custom::CustomResource
+    DependsOn:
+      - LogGroup
     Properties:
       ServiceToken: !GetAtt IAMUserCreatorLambda.Arn
       Users: !Ref paramUsers

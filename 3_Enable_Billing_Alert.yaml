@@ -38,7 +38,7 @@ Resources:
       MetricName: EstimatedCharges
       Namespace: AWS/Billing
       Statistic: Maximum
-      Period: 60
+      Period: 21600
       EvaluationPeriods: 1
       Threshold: !Ref paramBillingAlarmThreshold
       ComparisonOperator: GreaterThanOrEqualToThreshold

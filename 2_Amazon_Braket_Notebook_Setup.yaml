@@ -43,15 +43,12 @@ Parameters:
       - true
       - false
 
+## =================== CONDITIONS ===================
+Conditions:
+  isQPU: !Equals [ !Ref paramQPUAccess, false]
+
 ## =================== RESOURCES ===================
 Resources:
-  LogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: "/aws/sagemaker/NotebookInstances"
-      RetentionInDays: 7
-  Condition:
-    isQPU: !Equals [ !Ref paramQPUAccess, true]
   BraketNotebookInstanceLifecycleConfig:
     Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
     Properties:
@@ -172,8 +169,6 @@ Resources:
         - 'QPUPolicy-${Username}'
         - Username: !Ref paramUserNotebook
       Roles:
-        - !GetAtt ExecutionRole.Arn
+        - !Ref ExecutionRole
       Users:
-        - !Sub 
-          - arn:aws:iam::${AWS::AccountId}:user/${Username}
-          - Username: !Ref paramUserNotebook
+        - !Ref paramUserNotebook

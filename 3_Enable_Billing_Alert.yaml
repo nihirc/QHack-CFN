@@ -1,0 +1,49 @@
+## =================== VERSION ===================
+AWSTemplateFormatVersion: '2010-09-09'
+
+## =================== DESCRIPTION ===================
+Description: >-
+  AWS CloudFormation template 
+  Create billing alert. 
+
+## =================== PARAMETERS ===================
+Parameters:
+  paramBillingAlarmName:
+    Description: Billing alarm name
+    Type: String
+    Default: BillingAlarm
+  paramBillingAlarmThreshold:
+    Description: Get an alert if the billing goes above the threshold. Uses USD currency.
+    Type: String
+    Default: 50
+  paramBillingAlertEmail:
+    Description: An email address to send billing alerts
+    Type: String
+    Default: email@example.com
+
+## =================== RESOURCES ===================
+Resources:
+  BillingSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref paramBillingAlertEmail
+          Protocol: email
+      TopicName: BillingAlarm
+  CloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Ref paramBillingAlarmName
+      AlarmDescription: A cloudwatch alarm that triggers if the AWS bill reaches specified threshold
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: !Ref paramBillingAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: 
+        - !Ref BillingSnsTopic
+      Dimensions:
+        - Name: "Currency"
+          Value: "USD"

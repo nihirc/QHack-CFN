@@ -40,6 +40,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/IAMUserChangePassword
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
   QHackTeamAdminUser:
     Type: AWS::IAM::User
     Properties:
@@ -52,7 +53,7 @@ Resources:
   LambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: QHackCFNLambdaRole
+      RoleName: !Sub QHackCFNLambdaRole-${AWS::StackName}
       Description: Lambda function role to create IAM users
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
@@ -134,7 +135,7 @@ Resources:
   ExecutionRole: 
     Type: "AWS::IAM::Role"
     Properties: 
-      RoleName: AmazonBraketJobsExecutionRole
+      RoleName: !Sub AmazonBraketJobsExecutionRole-${AWS::StackName}
       AssumeRolePolicyDocument: 
         Version: "2012-10-17"
         Statement: 
@@ -182,7 +183,7 @@ Resources:
     Properties: 
       DirectInternetAccess: Enabled
       InstanceType: ml.t3.medium
-      NotebookInstanceName: amazon-braket-notebook
+      NotebookInstanceName: !Sub amazon-braket-notebook-${AWS::StackName}
       RoleArn: !GetAtt ExecutionRole.Arn
       VolumeSizeInGB: 30
       LifecycleConfigName: !GetAtt BraketNotebookInstanceLifecycleConfig.NotebookInstanceLifecycleConfigName
@@ -216,7 +217,7 @@ Resources:
       - QHackTeamGroup
       - UserAccessKeysTable
     Properties:
-      FunctionName: IAMUserCreatorFunction
+      FunctionName: !Sub IAMUserCreatorFunction-${AWS::StackName}
       Description: Lambda function to create IAM users, add them to group and populate DynamoDB with their access keys
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn

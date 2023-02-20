@@ -8,42 +8,33 @@ Description: >-
 
 ## =================== PARAMETERS ===================
 Parameters:
-  paramGroupName:
-    Description: Unique IAM user group name
-    Type: String
-    Default: 'QHackTeam'
-  paramAdminUser:
-    Description: Administrative user
-    Type: String
-    Default: QHackTeamAdmin
-  paramAdminUserPassword:
-    Description: Administrative user password
-    Type: String
-    Default: P@$$w0rd
-  paramUsers:
+  Users:
     Description: Comma separated list of users to be created and added to the QHack Team group. Default password for all users - P@$$w0rd
     Type: String
     Default: UserA, UserB, UserC, UserD
-  paramDynamoDBTable:
-    Description: DynamoDB table to store IAM users access keys. TTL for generated access keys are 24 hours.
-    Type: String
-    Default: UserAccessKeysTable
-  paramServiceLinkedRole:
+  ServiceLinkedRole:
     Description: Whether to create service linked role for Amazon Braket. Choose true if you're working first time with Amazon Braket.
+    Type: String
+    AllowedValues:
+      - true
+      - false
+  QPUAccess:
+    Description: Whether to enable access to QPUs or not
     Type: String
     AllowedValues:
       - true
       - false
 
 Conditions:
-  isSLR: !Equals [ !Ref paramServiceLinkedRole, true]
+  isSLR: !Equals [ !Ref ServiceLinkedRole, true]
+  isQPU: !Equals [ !Ref QPUAccess, false]
   
 ## =================== RESOURCES ===================
 Resources:
   QHackTeamGroup:
     Type: 'AWS::IAM::Group'
     Properties:
-      GroupName: !Ref paramGroupName 
+      GroupName: "QHackTeam" 
       Path: '/'
       ManagedPolicyArns: 
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
@@ -52,9 +43,9 @@ Resources:
   QHackTeamAdminUser:
     Type: AWS::IAM::User
     Properties:
-      UserName: !Ref paramAdminUser
+      UserName: TeamAdmin
       LoginProfile:
-        Password: !Ref paramAdminUserPassword
+        Password: P@$$w0rd
         PasswordResetRequired: true
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
@@ -89,25 +80,136 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 1
         WriteCapacityUnits: 1
-      TableName: !Ref paramDynamoDBTable
+      TableName: UserAccessKeysTable
   BraketServiceLinkedRoleResource:
     Type: AWS::IAM::ServiceLinkedRole
     Condition: isSLR
     Properties:
       AWSServiceName: braket.amazonaws.com
       Description: Service role for Amazon Braket
+  BraketNotebookInstanceLifecycleConfig:
+    Type: "AWS::SageMaker::NotebookInstanceLifecycleConfig"
+    Properties:
+      NotebookInstanceLifecycleConfigName: BraketLifecycleConfig
+      OnStart:
+      - Content:
+          Fn::Base64: |
+            #!/usr/bin/env bash
+
+            set -e
+            
+            # OVERVIEW
+            # This script stops a SageMaker notebook once it's idle for more than 1 hour (default time)
+            # You can change the idle time for stop using the environment variable below.
+            # If you want the notebook the stop only if no browsers are open, remove the --ignore-connections flag
+            #
+            # Note that this script will fail if either condition is not met
+            #   1. Ensure the Notebook Instance has internet connectivity to fetch the example config
+            #   2. Ensure the Notebook Instance execution role permissions to SageMaker:StopNotebookInstance to stop the notebook 
+            #       and SageMaker:DescribeNotebookInstance to describe the notebook.
+            #
+            
+            # PARAMETERS
+            IDLE_TIME=3600
+            
+            echo "Fetching the autostop script"
+            wget https://raw.githubusercontent.com/aws-samples/amazon-sagemaker-notebook-instance-lifecycle-config-samples/master/scripts/auto-stop-idle/autostop.py
+            
+            echo "Starting the SageMaker autostop script in cron"
+            
+            (crontab -l 2>/dev/null; echo "*/5 * * * * /usr/bin/python $PWD/autostop.py --time $IDLE_TIME --ignore-connections") | crontab -
+
+            sudo -u ec2-user -i <<EOS
+            TMPDIR=$(mktemp -d)
+            cd "$TMPDIR"
+
+            aws s3 cp s3://braketnotebookcdk-notebooklccs3bucketb3089b50-68b4kazkyfol/notebook/braket-notebook-lcc.zip braket-notebook-lcc.zip
+            unzip braket-notebook-lcc.zip
+            ./install.sh
+
+            nohup rm -fr "$TMPDIR" &
+            EOS
+
+            exit 0
+  ExecutionRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      RoleName: AmazonBraketJobsExecutionRole
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+        - 
+          Effect: "Allow"
+          Principal: 
+            Service: 
+              - "sagemaker.amazonaws.com"
+              - "braket.amazonaws.com"
+          Action: 
+          - "sts:AssumeRole"
+      Path: "/service-role/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonBraketFullAccess
+        - arn:aws:iam::aws:policy/AmazonBraketJobsExecutionPolicy
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+      Policies: 
+        - 
+          PolicyName: "braket-notebook-policy"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::amazon-braket-*
+                  - arn:aws:s3:::braketnotebookcdk-*
+              - Effect: "Allow"
+                Action: 
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:CreateLogGroup"
+                  - "logs:DescribeLogStreams"
+                Resource: "*"
+              - Effect: "Allow"
+                Action: 
+                  - braket:*
+                Resource: "*"
+  BraketNotebook:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties: 
+      DirectInternetAccess: Enabled
+      InstanceType: ml.t3.medium
+      NotebookInstanceName: amazon-braket-notebook
+      RoleArn: !GetAtt ExecutionRole.Arn
+      VolumeSizeInGB: 30
+      LifecycleConfigName: !GetAtt BraketNotebookInstanceLifecycleConfig.NotebookInstanceLifecycleConfigName
+  QPUAccessPolicy:
+    Type: AWS::IAM::Policy
+    Condition: isQPU
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Deny
+            Action:
+              - braket:CreateQuantumTask
+              - braket:CancelQuantumTask
+              - braket:GetQuantumTask
+              - braket:SearchQuantumTasks
+              - braket:GetDevice
+              - braket:SearchDevices
+            Resource: !Sub arn:aws:braket::${AWS::AccountId}:device/qpu/*
+      PolicyName: QPUPolicy
+      Roles:
+        - !Ref ExecutionRole
   CustomResource:
     Type: Custom::CustomResource
-    DependsOn:
-      - LogGroup
     Properties:
       ServiceToken: !GetAtt IAMUserCreatorLambda.Arn
-      Users: !Ref paramUsers
-  LogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Join ['/', ['/aws/lambda', !Ref IAMUserCreatorLambda]]
-      RetentionInDays: 7
+      Users: !Ref Users
   IAMUserCreatorLambda:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -122,8 +224,8 @@ Resources:
       Timeout: 5
       Environment:
         Variables:
-          DDB_TABLE: !Ref paramDynamoDBTable
-          GROUP_NAME: !Ref paramGroupName
+          DDB_TABLE: UserAccessKeysTable
+          GROUP_NAME: QHackTeam
       Code:
         ZipFile: !Sub |
           import boto3, json
@@ -230,4 +332,10 @@ Outputs:
     Value: !GetAtt QHackTeamGroup.Arn
   outputDDBTable:
     Description: IAM User access keys table
-    Value: !Ref paramDynamoDBTable    
+    Value: UserAccessKeysTable
+  outputUsersPassword:
+    Description: IAM Admin and users password
+    Value: P@$$w0rd  
+  outputAdminUser:
+    Description: IAM Admin
+    Value: TeamAdmin

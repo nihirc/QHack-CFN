@@ -24,8 +24,8 @@ Here, we will setup required groups, users and roles required to login to AWS ac
 6. Submit. Takes around 5 mins for the setup to finish. 
 7. Once the setup is finished, Login using Administrative user created and provide access keys, secret keys, login URL to respective users to be able to login to AWS console or access programmatically. 
 
-### 2. Setup Amazon Braket Notebook for users
-In this step, login as Administrative user and launch `2_Enable_Billing_Alert.yaml` for each user that you would like to create Amazon Braket Notebook. 
+### 2. Setup AWS billing alert
+In this step, login as Administrative user and launch `2_Enable_Billing_Alert.yaml` to setup AWS Billing alert. 
 
 #### <u>Instructions to run CloudFormation</u>
 1. Login to AWS account using Administrative user created in above step. 

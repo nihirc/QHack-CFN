@@ -8,10 +8,6 @@ Description: >-
 
 ## =================== PARAMETERS ===================
 Parameters:
-  paramBillingAlarmName:
-    Description: Billing alarm name
-    Type: String
-    Default: BillingAlarm
   paramBillingAlarmThreshold:
     Description: Get an alert if the billing goes above the threshold. Uses USD currency.
     Type: String
@@ -33,7 +29,7 @@ Resources:
   CloudWatchAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Ref paramBillingAlarmName
+      AlarmName: BillingAlarm
       AlarmDescription: A cloudwatch alarm that triggers if the AWS bill reaches specified threshold
       MetricName: EstimatedCharges
       Namespace: AWS/Billing

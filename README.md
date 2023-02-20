@@ -17,28 +17,23 @@ Here, we will setup required groups, users and roles required to login to AWS ac
 2. Download `1_IAM_Groups_Users_Setup.yaml` file to your local machine.
 3. Select `1_IAM_Groups_Users_Setup.yaml` file in CloudFormation console. 
 4. Accept default parameters or overwrite default parameters in next screen.
-    * **paramGroupName**: Unique name of IAM group with full access to Amazon Braket and S3. Default is `QHackTeam`. 
-    * **paramAdminUser**: Unique name of Administrative user. Default is `QHackTeamAdmin`. 
-    * **paramAdminUserPassword**: Password for Administrative user. This is a first time password and after your first login, you will be prompted to change password. Default is `P@$$w0rd`. 
-    * **paramUsers**: Comma separate list of users. A list of users that will have permission to login to AWS account and use Braket and S3 services. Default password for all users is `P@$$w0rd`. They will be prompted to change password after their first login. 
-    * **paramDynamoDBTable**: Name of DynamoDB table that contains access key and secret key of all IAM users. Only Administrative user has access to DynamoDB table.
-    * **paramBillingAlarmName**: Name of Billing alarm. Default is `BillingAlarm`. 
-    * **paramBillingAlarmThreshold**: Value to send alert when AWS bill goes above this threshold value. 
-    * **paramBillingAlertEmail**: Email where billing alerts will be sent. Default is `name@example.com`. 
+    * **Users**: Comma separate list of users. A list of users that will have permission to login to AWS account and use Braket and S3 services. Default password for all users is `P@$$w0rd`. They will be prompted to change password after their first login. 
+    * **ServiceLinkedRole**: Whether to create Amazon Braket service linked role.
+    * **QPUAccess**: Whether to enable access to QPU hardware
 5. Click Next, Next and select checkbox to accept conditions that IAM users and roles will be created.
 6. Submit. Takes around 5 mins for the setup to finish. 
 7. Once the setup is finished, Login using Administrative user created and provide access keys, secret keys, login URL to respective users to be able to login to AWS console or access programmatically. 
 
 ### 2. Setup Amazon Braket Notebook for users
-In this step, login as Administrative user and launch `2_Amazon_Braket_Notebook_Setup.yaml` for each user that you would like to create Amazon Braket Notebook. 
+In this step, login as Administrative user and launch `2_Enable_Billing_Alert.yaml` for each user that you would like to create Amazon Braket Notebook. 
 
 #### <u>Instructions to run CloudFormation</u>
 1. Login to AWS account using Administrative user created in above step. 
-2. Navigate to CloudFormation console and select `2_Amazon_Braket_Notebook_Setup.yaml` template.
+2. Navigate to `us-east-1` region and go to CloudFormation console and select `2_Enable_Billing_Alert.yaml` template.
 3. Fill in below list of parameters
-    * **paramUserNotebook**: Name of the user for whom to create notebook instance. Username should match users created using `1_IAM_Groups_Users_Setup.yaml` template.
-    * **paramInstanceType**: Instance type for notebook instance. Default is `ml.t3.medium`. 
-    * **paramQPUAccess**: Whether to provide access to QPUs to the user
+    * **BillingAlarmName**: Name of Billing alarm. Default is `BillingAlarm`. 
+    * **BillingAlarmThreshold**: Value to send alert when AWS bill goes above this threshold value. 
+    * **BillingAlertEmail**: Email where billing alerts will be sent. Default is `name@example.com`. 
 4. Click Next, Next and select checkbox to accept conditions that IAM roles will be created.
 5. Submit. Takes around 5 mins for the notebook creation to finish.
 6. Repeat for each user that you would like to provide Notebook instance.

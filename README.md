@@ -4,13 +4,7 @@ CloudFormation templates to help setup AWS and Amazon Braket for QHack hackathon
 
 ## How to setup AWS Account for Amazon Braket
 ### 1. Setup IAM Groups and Users
-Here, we will setup required groups, users and roles required to login to AWS account and use Amazon Braket. Following list of resources are created as part of Cloudformation - 
-* IAM Group with permission Full access permission to Amazon Braket and S3
-* Administrative IAM user to manage AWS resources
-* Lambda function and role to create IAM users
-* IAM users that will be part of IAM group with full access to Amazon Braket and S3
-* DynamoDB table that contains access keys and secret key of IAM users. Can only be accessed by Administrative IAM user.
-* Billing alarm with default threshold of $50. Sends alerts to email address when AWS bill breaches the specified threshold.
+Here, we will setup required groups, users and roles required to login to AWS account and use Amazon Braket. 
 
 #### <u>Instructions to run Cloudformation</u>
 1. Login to AWS using root account and nagive to CloudFormation console. 

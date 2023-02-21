@@ -12,6 +12,7 @@ Parameters:
     Description: Comma separated list of users to be created and added to the QHack Team group. Default password for all users - P@$$w0rd
     Type: String
     Default: UserA, UserB, UserC, UserD
+    MinLength: 2
   ServiceLinkedRole:
     Description: Whether to create service linked role for Amazon Braket. Choose true if you're working first time with Amazon Braket.
     Type: String
@@ -27,7 +28,7 @@ Parameters:
   BraketCostThreshold:
     Description: Braket cost threshold value after which all the submitted jobs and tasks will be cancelled
     Type: String
-    Default: 500
+    Default: 100
   BillingAlertEmail:
     Description: An email address to send billing alerts
     Type: String
@@ -49,6 +50,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/IAMUserChangePassword
         - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
   QHackTeamAdminUser:
     Type: AWS::IAM::User
     Properties:
@@ -58,27 +60,51 @@ Resources:
         PasswordResetRequired: true
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
-  CloudWatchAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: BraketCostAlarm
-      AlarmDescription: A cloudwatch alarm that triggers if the Braket cost goes above threshold
-      MetricName: Braket_Cost
-      Namespace: Braket
-      Statistic: Sum
-      Period: 3600
-      EvaluationPeriods: 1
-      Threshold: !Ref BraketCostThreshold
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      AlarmActions: 
-        - !Ref BraketAlarmSnsTopic
+  # CloudWatchAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: BraketCostAlarm
+  #     AlarmDescription: A cloudwatch alarm that triggers if the Braket cost goes above threshold
+  #     MetricName: Braket_Cost
+  #     Namespace: Braket
+  #     Statistic: Sum
+  #     Period: 3600
+  #     EvaluationPeriods: 1
+  #     Threshold: !Ref BraketCostThreshold
+  #     ComparisonOperator: GreaterThanOrEqualToThreshold
+  #     AlarmActions: 
+  #       - !Ref BraketAlarmSnsTopic
   BraketAlarmSnsTopic:
     Type: AWS::SNS::Topic
     Properties:
       Subscription:
         - Endpoint: !Ref BillingAlertEmail
           Protocol: email
-      TopicName: BillingAlarm
+      TopicName: BraketBillingAlarm
+  ScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRule"
+      ScheduleExpression: "rate(60 minutes)"
+      State: "ENABLED"
+      Targets: 
+        - 
+          Arn: 
+            Fn::GetAtt: 
+              - "BraketTerminatorLambda"
+              - "Arn"
+          Id: "TargetFunctionV1"
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: 
+        Ref: BraketTerminatorLambda
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "ScheduledRule"
+          - "Arn"
   LambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -99,6 +125,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
   UserAccessKeysTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -182,6 +209,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/AmazonBraketFullAccess
         - arn:aws:iam::aws:policy/AmazonBraketJobsExecutionPolicy
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
         - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
       Policies: 
         - 
@@ -250,13 +278,21 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.8
       MemorySize: 2048
-      Timeout: 15
+      Timeout: 900
+      Environment:
+        Variables:
+          threshold: !Ref BraketCostThreshold
+          sns_topic: !Ref BraketAlarmSnsTopic
       Code:
         ZipFile: !Sub |
           import json
           import boto3
+          import os
+          from datetime import datetime, timedelta
 
           regions = ["us-east-1", "us-west-1", "us-west-2", "eu-west-2"]
+          braket_threshold = float(os.environ["threshold"])
+          sns_topic = os.environ["sns_topic"]
 
           def get_running_jobs(braket):
               """Get all the Braket jobs for a region"""
@@ -285,29 +321,67 @@ Resources:
               except Exception as e:
                   print(e)
 
-          def lambda_handler(event, context):
+          def get_total_braket_cost():
+              cloudwatch = boto3.client("cloudwatch")
+              try:
+                  response = cloudwatch.get_metric_statistics(
+                      Namespace="Braket",
+                      MetricName="Braket_Cost",
+                      StartTime=datetime.now() - timedelta(days=14),
+                      EndTime=datetime.now(),
+                      Period=3600,
+                      Statistics=["Sum"]
+                  )
+                  print(response)
+                  return response
+              except Exception as e:
+                  print(e)
+
+          def send_notification(cost):
+              try:
+                  sns = boto3.client("sns")
+                  message = f"Braket cost has breached threshold. Cost as of now is {cost}. Shutting down Braket jobs and tasks."
+                  response = sns.publish(
+                      TopicArn=sns_topic,
+                      Message=message,
+                      Subject="Braket cost threshold breached"
+                  )
+              except Exception as e:
+                  print(e)
+
+
+          def handler(event, context):
               """Main lambda handler"""
               
-              for region in regions:
-                  braket = boto3.client("braket", region_name=region)
-                  paginator = get_running_jobs(braket)
-                  if "jobs" in paginator:
-                      for job in paginator["jobs"]:
-                          if job["status"] in ["RUNNING", "QUEUED"]:
-                              cancel_job(braket, job)
-                              
-                  queued_tasks = get_running_tasks(braket, ["QUEUED"])
-                  if "quantumTasks" in queued_tasks:
-                      for task in queued_tasks["quantumTasks"]:
-                          if task["status"] in ["RUNNING", "QUEUED"]:
-                              cancel_task(braket, task)
+              cloudwatch_response = get_total_braket_cost()
+              total_cost = 0.0
+              if "Datapoints" in cloudwatch_response:
+                  for datapoint in cloudwatch_response["Datapoints"]:
+                      if "Sum" in datapoint:
+                          total_cost += float(datapoint["Sum"])
+              if total_cost >= braket_threshold:
+                  send_notification(total_cost)
+                  for region in regions:
+                      braket = boto3.client("braket", region_name=region)
+                      paginator = get_running_jobs(braket)
+                      if "jobs" in paginator:
+                          for job in paginator["jobs"]:
+                              if job["status"] in ["RUNNING", "QUEUED"]:
+                                  cancel_job(braket, job)
+                                  
+                      queued_tasks = get_running_tasks(braket, ["QUEUED"])
+                      if "quantumTasks" in queued_tasks:
+                          for task in queued_tasks["quantumTasks"]:
+                              if task["status"] in ["RUNNING", "QUEUED"]:
+                                  cancel_task(braket, task)
+                          
                       
-                  
-                  running_tasks = get_running_tasks(braket, ["RUNNING"])
-                  if "quantumTasks" in running_tasks:
-                      for task in running_tasks["quantumTasks"]:
-                          if task["status"] in ["RUNNING", "QUEUED"]:
-                              cancel_task(braket, task)
+                      running_tasks = get_running_tasks(braket, ["RUNNING"])
+                      if "quantumTasks" in running_tasks:
+                          for task in running_tasks["quantumTasks"]:
+                              if task["status"] in ["RUNNING", "QUEUED"]:
+                                  cancel_task(braket, task)
+
   IAMUserCreatorLambda:
     Type: AWS::Lambda::Function
     DependsOn:
@@ -319,7 +393,7 @@ Resources:
       Handler: index.handler
       Role: !GetAtt LambdaRole.Arn
       Runtime: python3.8
-      Timeout: 5
+      Timeout: 300
       Environment:
         Variables:
           DDB_TABLE: UserAccessKeysTable

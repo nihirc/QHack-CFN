@@ -24,6 +24,14 @@ Parameters:
     AllowedValues:
       - true
       - false
+  BraketCostThreshold:
+    Description: Braket cost threshold value after which all the submitted jobs and tasks will be cancelled
+    Type: String
+    Default: 500
+  BillingAlertEmail:
+    Description: An email address to send billing alerts
+    Type: String
+    Default: email@example.com
 
 Conditions:
   isSLR: !Equals [ !Ref ServiceLinkedRole, true]
@@ -50,6 +58,27 @@ Resources:
         PasswordResetRequired: true
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
+  CloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: BraketCostAlarm
+      AlarmDescription: A cloudwatch alarm that triggers if the Braket cost goes above threshold
+      MetricName: Braket_Cost
+      Namespace: Braket
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: !Ref BraketCostThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: 
+        - !Ref BraketAlarmSnsTopic
+  BraketAlarmSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref BillingAlertEmail
+          Protocol: email
+      TopicName: BillingAlarm
   LambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -69,6 +98,7 @@ Resources:
         - arn:aws:iam::aws:policy/IAMFullAccess
         - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/AmazonBraketFullAccess 
   UserAccessKeysTable:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -211,6 +241,73 @@ Resources:
     Properties:
       ServiceToken: !GetAtt IAMUserCreatorLambda.Arn
       Users: !Ref Users
+  BraketTerminatorLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub BraketTerminator-${AWS::StackName}
+      Description: Lambda function to terminate braket jobs and tasks if braket cost threshold is breached
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.8
+      MemorySize: 2048
+      Timeout: 15
+      Code:
+        ZipFile: !Sub |
+          import json
+          import boto3
+
+          regions = ["us-east-1", "us-west-1", "us-west-2", "eu-west-2"]
+
+          def get_running_jobs(braket):
+              """Get all the Braket jobs for a region"""
+              p = braket.get_paginator("search_jobs")
+              paginator = p.paginate(filters=[]).build_full_result()
+              print(paginator)
+              return paginator
+              
+          def get_running_tasks(braket, values):
+              """Gets Braket tasks for a region"""
+              p = braket.get_paginator("search_quantum_tasks")
+              paginator = p.paginate(filters=[{"name": "status", "operator": "EQUAL", "values": values}]).build_full_result()
+              return paginator
+
+          def cancel_task(braket, task):
+              try:
+                  response = braket.cancel_quantum_task(quantumTaskArn=task["quantumTaskArn"])
+                  print(response)
+              except Exception as e:
+                  print(e)
+
+          def cancel_job(braket, job):
+              try:
+                  response = braket.cancel_job(jobArn=job["jobArn"])
+                  print(response)
+              except Exception as e:
+                  print(e)
+
+          def lambda_handler(event, context):
+              """Main lambda handler"""
+              
+              for region in regions:
+                  braket = boto3.client("braket", region_name=region)
+                  paginator = get_running_jobs(braket)
+                  if "jobs" in paginator:
+                      for job in paginator["jobs"]:
+                          if job["status"] in ["RUNNING", "QUEUED"]:
+                              cancel_job(braket, job)
+                              
+                  queued_tasks = get_running_tasks(braket, ["QUEUED"])
+                  if "quantumTasks" in queued_tasks:
+                      for task in queued_tasks["quantumTasks"]:
+                          if task["status"] in ["RUNNING", "QUEUED"]:
+                              cancel_task(braket, task)
+                      
+                  
+                  running_tasks = get_running_tasks(braket, ["RUNNING"])
+                  if "quantumTasks" in running_tasks:
+                      for task in running_tasks["quantumTasks"]:
+                          if task["status"] in ["RUNNING", "QUEUED"]:
+                              cancel_task(braket, task)
   IAMUserCreatorLambda:
     Type: AWS::Lambda::Function
     DependsOn:

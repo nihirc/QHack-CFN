@@ -3,6 +3,26 @@
 CloudFormation templates to help setup AWS and Amazon Braket for QHack hackathon 2023. 
 
 ## How to setup AWS Account for Amazon Braket
+
+### Pre-requisite
+Before deploying Cloudformation templates, please ensure below pre-requisite steps are performed - 
+1. Ensure that you have applied provided credits code to your account. To do so, please follow below steps - 
+    * Sign in to your AWS account using email address you used to register for the account. Then visit link (https://console.aws.amazon.com/billing/home?#/credits) to apply credits code.
+    * After visiting, you will be directed to the page as shown in below image.
+    ![AWS Credits](https://miro.medium.com/v2/resize:fit:1400/format:webp/1*U4ylVteTRJf66kZqh-HhRg.jpeg)
+    * Click on "Redeem credit" as shown in the image below.
+    ![AWS Credits](https://miro.medium.com/v2/resize:fit:1400/format:webp/1*NEQ382KPoucHaqkuSwsI1w.jpeg)
+    * Enter the provided promotional code of AWS Credits, provide the security code and click on "Redeem credit" as shown in the image below.
+    ![AWS Credits](https://miro.medium.com/v2/resize:fit:1400/format:webp/1*hrCHGTCSqQtd_qnpK1I4zg.jpeg)
+    * At this point, your AWS credits are successfully applied to your account. 
+
+2. After successfully applying AWS credits, we will enable AWS billing alerts. 
+    * Sign in to your AWS account using email address you used to register for the account. Then visit link (https://console.aws.amazon.com/billing/home).
+    * On the left navigation panel, select **Preferences** and check the **Receive Billing Alerts** feature settings. If it is unchecked, it means that AWS Billing alerts feature is currently disabled in your account. 
+    ![AWS Billing Alerts](https://d2908q01vomqb2.cloudfront.net/972a67c48192728a34979d9a35164c1295401b71/2021/10/05/fig3rbil.png)
+
+3. Next, we will walk through the steps using AWS CloudFormation to automate creation of AWS resources for Amazon Braket. To do so, please clone this repository to your local machine.
+
 ### 1. Setup IAM Groups and Users
 Here, we will setup required groups, users and roles required to login to AWS account and use Amazon Braket. 
 

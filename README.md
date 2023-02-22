@@ -29,18 +29,20 @@ Before deploying Cloudformation templates, please ensure below pre-requisite ste
 4. Next, we will walk through the steps using AWS CloudFormation to automate creation of AWS resources for Amazon Braket. To do so, please clone this repository to your local machine.
 
 ### 1. Setup IAM Groups and Users
-Here, we will setup required groups, users and roles required to login to AWS account and use Amazon Braket. 
+Here, we will setup required groups, users and roles, Amazon Braket roles, Amazon Braket cost alerts, Amazon Braket notebook.
 
 #### <u>Instructions to run Cloudformation</u>
-1. Login to AWS using root account and nagive to CloudFormation console. 
-2. Download `1_IAM_Groups_Users_Setup.yaml` file to your local machine.
-3. Select `1_IAM_Groups_Users_Setup.yaml` file in CloudFormation console. 
+1. Login to AWS using the email address used to create AWS account and navigate to AWS CloudFormation console.
+2. We will deploy `1_IAM_Users_Braket_Setup.yaml` file from repository cloned to your local machine.
+3. Select `1_IAM_Users_Braket_Setup.yaml` file in CloudFormation console. 
 4. Accept default parameters or overwrite default parameters in next screen.
     * **Users**: Comma separate list of users. A list of users that will have permission to login to AWS account and use Braket and S3 services. Default password for all users is `P@$$w0rd`. They will be prompted to change password after their first login. 
     * **ServiceLinkedRole**: Whether to create Amazon Braket service linked role.
     * **QPUAccess**: Whether to enable access to QPU hardware
+    * **BraketCostThreshold**: USD amount threshold if when breached, will shut down Amazon Braket jobs and tasks. 
+    * **BillingAlertEmail**: Email to send notifications when Amazon Braket cost threshold is breached.
 5. Click Next, Next and select checkbox to accept conditions that IAM users and roles will be created.
-6. Submit. Takes around 5 mins for the setup to finish. 
+6. Submit. Takes around 5-10 mins for the setup to finish. 
 7. Once the setup is finished, Login using Administrative user created and provide access keys, secret keys, login URL to respective users to be able to login to AWS console or access programmatically. 
 
 ### 2. Setup AWS billing alert

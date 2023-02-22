@@ -21,7 +21,12 @@ Before deploying Cloudformation templates, please ensure below pre-requisite ste
     * On the left navigation panel, select **Preferences** and check the **Receive Billing Alerts** feature settings. If it is unchecked, it means that AWS Billing alerts feature is currently disabled in your account. 
     ![AWS Billing Alerts](https://d2908q01vomqb2.cloudfront.net/972a67c48192728a34979d9a35164c1295401b71/2021/10/05/fig3rbil.png)
 
-3. Next, we will walk through the steps using AWS CloudFormation to automate creation of AWS resources for Amazon Braket. To do so, please clone this repository to your local machine.
+3. To enable and access third party QPUs such as IonQ, Rigetti, etc you must agree to certain terms and conditions. To do so, please follow below steps - 
+    * Sign in to your AWS account using email address you used to register for the account. Then visit link (https://us-west-1.console.aws.amazon.com/braket/home?region=us-west-2#/dashboard)
+    * On the left nagivation panel, select **Permissions and Settings**. Under **General** tab, please click on "Accept terms and enable" button. 
+    ![AWS Braket](https://docs.aws.amazon.com/images/braket/latest/developerguide/images/General.png)
+
+4. Next, we will walk through the steps using AWS CloudFormation to automate creation of AWS resources for Amazon Braket. To do so, please clone this repository to your local machine.
 
 ### 1. Setup IAM Groups and Users
 Here, we will setup required groups, users and roles required to login to AWS account and use Amazon Braket. 

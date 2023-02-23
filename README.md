@@ -63,7 +63,8 @@ In this step, login as Administrative user and launch `2_Enable_Billing_Alert.ya
 ## Track Braket cost globally
 Enter below code snippet at the end of each notebook or script to track Braket cost globally.
 
-```import boto3
+```
+import boto3
 
 cloudwatch = boto3.client("cloudwatch")
 
@@ -79,5 +80,27 @@ def submit_braket_cost(t):
     )
     print(response)
 
-submit_braket_cost(t)```
+submit_braket_cost(t)
+```
+
+## Setting up local development environment
+
+If you would like to run Braket jobs and/or tasks from your local machine, please follow below steps - 
+1. Install AWS SDK, AWS CLI and Braket SDK by running below commands - 
+```
+pip3 install awscli boto3 amazon-braket-sdk
+```
+
+2. Reach out to your AWS Administrator to get access key and secret key. As an AWS Administrator, you will find access keys and secret keys in DynamoDB table. In AWS Console, type DynamoDB in search bar and navigate to DynamoDB console. On the left navigational menu, click on "Explore items" and select table "UserAccessKeysTable" and you should see keys for each user.
+
+3. Configure access keys and secret keys on your machine by running command. Choose `us-west-1` as region when prompted and use `json` as output format.
+```
+aws configure
+```
+
+4. You're all set to develop locally and run jobs and tasks on Amazon Braket. 
+
+
+
+
 

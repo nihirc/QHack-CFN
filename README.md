@@ -59,3 +59,25 @@ In this step, login as Administrative user and launch `2_Enable_Billing_Alert.ya
 5. Submit. Takes around 5 mins for the notebook creation to finish.
 6. Repeat for each user that you would like to provide Notebook instance.
 
+
+## Track Braket cost globally
+Enter below code snippet at the end of each notebook or script to track Braket cost globally.
+
+```import boto3
+
+cloudwatch = boto3.client("cloudwatch")
+
+def submit_braket_cost(t):
+    """Puts braket cost for a session to CloudWatch as a custom metrics"""
+    response = cloudwatch.put_metric_data(
+        Namespace="Braket",
+        MetricData=[{
+            'MetricName': 'Braket_Cost',
+            'Unit': 'Count',
+            'Value': t.qpu_tasks_cost() + t.simulator_tasks_cost()
+        }]
+    )
+    print(response)
+
+submit_braket_cost(t)```
+
